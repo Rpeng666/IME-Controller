@@ -1,9 +1,13 @@
 # IME Controller (输入法状态控制器)
 
-![License](https://img.shields.io/github/license/yourusername/ime-controller)
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/yourusername/ime-controller)
+![License](https://img.shields.io/github/license/rpeng666/ime-controller)
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/rpeng666/ime-controller)
 
-一个 Windows 系统托盘应用程序，用于控制中文输入法的状态。解决 Windows 中文输入法频繁自动切换到英文的烦恼。
+一个 Windows 系统托盘应用程序，用于控制输入法的状态。解决 Windows 中文输入法在某些场景下频繁自动切换的苦恼，直接锁定中文或者英文。
+
+> 如果觉得有用的话，客官赏个star呗，蟹蟹 >_<
+
+![](./docs/image.png)
 
 ### 主要特点：
 - 🎯 监听焦点事件而非循环检测，性能开销极低
@@ -34,12 +38,12 @@
 
 ## 系统要求
 
-- Windows 10 或更高版本
+- Windows 11
 - 微软拼音输入法
 
 ## 编译方法
 
-确保已安装 Rust 开发环境，然后执行：
+确保已安装 Rust 开发环境，然后执行（需要使用Visual Studio 2022 Developer Prompt命令行，或者有rc.exe环境变量的普通命令行也行）：
 
 ```powershell
 cargo build --release
@@ -62,7 +66,3 @@ cargo build --release
 ## 开源协议
 
 本项目采用 MIT 协议开源。
-
-## 致谢
-
-感谢所有为本项目做出贡献的开发者！
