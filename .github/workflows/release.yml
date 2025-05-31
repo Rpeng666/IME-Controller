@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        
+      - name: Setup Visual Studio Shell
+        uses: egor-tensin/vs-shell@v2
+        with:
+          arch: x64
+
+      - name: Build Release
+        run: |
+          cargo build --release
+          
+      - name: Create Release Bundle
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release-bundle
+          Copy-Item target/release/ime-controller.exe release-bundle/
+          Copy-Item README.md release-bundle/
+          Copy-Item LICENSE release-bundle/
+          Compress-Archive -Path release-bundle/* -DestinationPath ime-controller.zip
+          
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            target/release/ime-controller.exe
+            ime-controller.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

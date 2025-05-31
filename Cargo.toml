@@ -1,0 +1,31 @@
+[package]
+name = "ime-controller"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "一个 Windows 系统托盘应用程序，用于控制输入法状态（中文/英文）"
+repository = "https://github.com/yourusername/ime-controller"
+license = "MIT"
+keywords = ["ime", "chinese", "windows", "input-method", "tray-application"]
+categories = ["accessibility", "os::windows-apis"]
+
+build = "build.rs"
+
+[dependencies]
+windows = { version = "0.48", features = [
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Foundation",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Input_Ime",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_Shell",
+    "Win32_UI_Accessibility",
+    "Win32_System_Threading",
+    "Win32_Graphics_Gdi",
+] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+log = "0.4"
+simplelog = "0.12"
+lazy_static = "1.4"
+dirs = "6.0.0"
