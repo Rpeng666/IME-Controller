@@ -4,7 +4,7 @@ mod config;
 mod logger;
 
 use lazy_static::lazy_static;
-use log::{error, info};
+use log::{debug, error, info};
 use std::{sync::Mutex, thread, time::Duration};
 
 use windows::{
@@ -43,6 +43,7 @@ const IDM_RELOAD_CONFIG: u32 = 1011;
 const NOTIFYICONMESSAGE: u32 = WM_USER + 100;
 const HOT_KEY_TOGGLE_ID: i32 = 1; // 切换总开关
 const HOT_KEY_SWITCH_MODE_ID: i32 = 2; // 切换中英文模式
+const TIMER_ID_IME_CHECK: usize = 1; // 定时器ID，用于定时检测输入法状态
 
 // Global state
 lazy_static! {
@@ -149,6 +150,44 @@ fn apply_ime_setting_to_current_window() {
                 0,
             );
         }
+    }
+}
+
+/// 检测并强制输入法状态 - 定时轮询版本
+fn check_and_force_ime_state() {
+    let config = CONFIG.lock().unwrap();
+    
+    // 如果总开关关闭，不做任何处理
+    if !config.master_switch {
+        return;
+    }
+    drop(config);
+    
+    unsafe {
+        let current_hwnd = GetForegroundWindow();
+        if current_hwnd.0 == 0 {
+            return;
+        }
+        
+        // 获取当前进程名，检查是否在排除列表中
+        if let Some(process_name) = get_window_process_name(current_hwnd) {
+            let config = CONFIG.lock().unwrap();
+            if config.excluded_apps.contains(&process_name) {
+                return;
+            }
+            drop(config);
+        }
+        
+        // 直接调用现有的事件处理逻辑来强制切换
+        event_hook_callback(
+            HWINEVENTHOOK(0),
+            EVENT_SYSTEM_FOREGROUND,
+            current_hwnd,
+            0,
+            0,
+            0,
+            0,
+        );
     }
 }
 
@@ -557,6 +596,13 @@ unsafe extern "system" fn window_proc(
                 _ => {}
             }
         },
+        // 处理定时器消息 - 定时检测输入法状态
+        WM_TIMER => {
+            if wparam.0 == TIMER_ID_IME_CHECK {
+                // 执行定时检测输入法状态
+                check_and_force_ime_state();
+            }
+        },
         WM_DESTROY => {
             PostQuitMessage(0);
         }
@@ -884,10 +930,24 @@ fn main() -> windows::core::Result<()> {
         return Err(Error::from_win32());
     }
 
+    // 设置定时器，用于定时检测输入法状态
+    unsafe {
+        if SetTimer(hwnd, TIMER_ID_IME_CHECK, 500, None) == 0 { // 每500ms检测一次
+            error!("Failed to set IME check timer");
+            return Err(Error::from_win32());
+        } else {
+            info!("IME check timer set successfully (interval: 500ms)");
+        }
+    }
+
     // 消息循环
     create_message_loop();
 
-    // 清理钩子
+    // 清理定时器和钩子
+    unsafe {
+        KillTimer(hwnd, TIMER_ID_IME_CHECK);
+    }
+    
     if let Some(hook) = hook {
         unsafe {
             UnhookWinEvent(hook);
