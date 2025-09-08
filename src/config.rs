@@ -1,3 +1,4 @@
+use crate::hooks::event_loop_hook::enforce_global_ime_mode;
 use crate::tray::icon::update_tray_icon;
 use crate::tray::notifications::show_balloon_tip;
 use crate::utils::hot_key::register_all_hotkeys;
@@ -7,14 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::RwLock;
-use windows::Win32::UI::TextServices::HKL;
-use windows::core::PCSTR;
-use windows::Win32::{
-    Foundation::{GetLastError, HWND, LPARAM, WPARAM},
-    UI::Input::KeyboardAndMouse::*,
-    UI::Input::Ime::{self, *},
-    UI::WindowsAndMessaging::{SendMessageW, WM_INPUTLANGCHANGEREQUEST},
-};
+use windows::Win32::Foundation::{GetLastError, HWND, LPARAM, WPARAM};
 use winreg::enums::*;
 use winreg::RegKey;
 
@@ -182,126 +176,7 @@ pub fn switch_ime_mode(hwnd: HWND, mode: ImeMode) {
 /// 应用输入法设置到当前窗口
 pub fn apply_ime_setting_to_current_window(hwnd: HWND, config: ImeMode) {
     unsafe {
-        let mut buf: [u8; 9] = [0u8; 9];
-        if GetKeyboardLayoutNameA(&mut buf).as_bool() {
-            let lang_id = String::from_utf8_lossy(&buf);
-            let lang_id_str = lang_id.trim_end_matches('\0');
-
-            info!("当前键盘布局: {}", lang_id_str);
-
-            // 只处理简体中文输入法
-            if lang_id_str == "00000804" {
-                let target_hkl = match config {
-                    ImeMode::ChineseOnly => HKL(0x0804 as isize), // 中文(简体)
-                    ImeMode::EnglishOnly => HKL(0x0409 as isize), // 英文(美式)
-                };
-
-                // 1. 获取默认IME窗口
-                let default_ime_wnd = ImmGetDefaultIMEWnd(hwnd);
-                
-                if default_ime_wnd.0 != 0 {
-                    // 2. 直接发送切换消息给IME窗口
-                    let _ = SendMessageW(
-                        default_ime_wnd,
-                        WM_INPUTLANGCHANGEREQUEST,
-                        WPARAM(0),
-                        LPARAM(target_hkl.0),
-                    );
-
-                    // 3. 获取IME上下文并设置状态
-                    let himc = ImmGetContext(default_ime_wnd);
-                    if himc.0 != 0 {
-                        if let ImeMode::ChineseOnly = config {
-                            let _ = ImmSetOpenStatus(himc, true);
-                            // 设置转换模式为中文
-                            let mut conversion_mode = IME_CONVERSION_MODE::default();
-                            let mut sentence_mode = IME_SENTENCE_MODE::default();
-                            if ImmGetConversionStatus(himc, Some(&mut conversion_mode), Some(&mut sentence_mode)).as_bool() {
-                                let _ = ImmSetConversionStatus(
-                                    himc,
-                                    IME_CONVERSION_MODE(IME_CMODE_NATIVE.0 | IME_CMODE_FULLSHAPE.0 | IME_CMODE_CHINESE.0),
-                                    sentence_mode,
-                                );
-                            }
-                        } else {
-                            let _ = ImmSetOpenStatus(himc, false);
-                            // 设置转换模式为英文
-                            let _ = ImmSetConversionStatus(
-                                himc,
-                                IME_CONVERSION_MODE(IME_CMODE_ALPHANUMERIC.0),
-                                IME_SENTENCE_MODE::default(),
-                            );
-                        }
-                        let _ = ImmReleaseContext(default_ime_wnd, himc);
-                    }
-                    
-                    // 4. 强制刷新输入法状态
-                    let himc = ImmGetContext(default_ime_wnd);
-                    if himc.0 != 0 {
-                        let _ = ImmNotifyIME(
-                            himc,
-                            NOTIFY_IME_ACTION(NI_COMPOSITIONSTR.0),
-                            NOTIFY_IME_INDEX(CPS_CANCEL.0),
-                            0,
-                        );
-                        let _ = ImmReleaseContext(default_ime_wnd, himc);
-                    }
-                }
-
-                // 4. 使用 ActivateKeyboardLayout 作为备选方案
-                let flags = ACTIVATE_KEYBOARD_LAYOUT_FLAGS(
-                    KLF_ACTIVATE.0 | KLF_SETFORPROCESS.0 | KLF_REORDER.0 | KLF_REPLACELANG.0 | KLF_RESET.0,
-                );
-
-                let result = ActivateKeyboardLayout(target_hkl, flags);
-
-                if result.is_err() {
-                    let err_code = GetLastError().0;
-                    error!(
-                        "ActivateKeyboardLayout 切换输入法失败，错误码: {}",
-                        err_code
-                    );
-
-                    // 尝试使用其他方式加载输入法
-                    let layout_str = match config {
-                        ImeMode::ChineseOnly => "00000804",
-                        ImeMode::EnglishOnly => "00000409",
-                    };
-
-                    // 确保字符串以null结尾
-                    let mut layout_bytes = layout_str.as_bytes().to_vec();
-                    layout_bytes.push(0);
-
-                    // 加载键盘布局
-                    let loaded_hkl = LoadKeyboardLayoutA(PCSTR(layout_bytes.as_ptr()), KLF_ACTIVATE);
-
-                    // 检查是否加载成功
-                    match loaded_hkl {
-                        Ok(hkl) => {
-                            if hkl.0 == 0 {
-                                error!(
-                                    "LoadKeyboardLayout 也失败了，可能系统中没有安装对应的输入法"
-                                );
-                            } else {
-                                info!("通过 LoadKeyboardLayout 成功加载输入法布局");
-                                // 重试激活当前布局
-                                let retry_result = ActivateKeyboardLayout(target_hkl, flags);
-                                if retry_result.is_err() {
-                                    error!("重试激活输入法失败");
-                                } else {
-                                    info!("通过 LoadKeyboardLayout 成功切换到 {:?}", config);
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            error!("LoadKeyboardLayout 调用失败");
-                        }
-                    }
-                } else {
-                    info!("ActivateKeyboardLayout 成功切换到 {:?}", config);
-                }
-            }
-        }
+        enforce_global_ime_mode(hwnd, &config);
     }
 }
 

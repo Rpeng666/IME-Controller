@@ -1,5 +1,6 @@
-use crate::constants;
 use crate::config::CONFIG;
+use crate::constants;
+use crate::tray::HINSTANCE;
 use log::info;
 use windows::{
     core::*,
@@ -25,17 +26,14 @@ pub fn update_tray_icon(hwnd: HWND, enabled: bool) -> windows::core::Result<()> 
         "输入法控制 - 已禁用"
     };
 
-    info!(
-        "更新托盘图标 - enabled: {}, icon_id: {}",
-        enabled, icon_id
-    );
+    info!("更新托盘图标 - enabled: {}, icon_id: {}", enabled, icon_id);
 
     let mut nid = NOTIFYICONDATAW {
         cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
         hWnd: hwnd,
         uFlags: NIF_ICON | NIF_TIP,
         hIcon: unsafe {
-            let icon = LoadIconW(h_instance, PCWSTR(icon_id as *const u16))?;
+            let icon = LoadIconW(Some(HINSTANCE(h_instance.0)), PCWSTR(icon_id as *const u16))?;
             info!("加载图标句柄: {:?}", icon);
             icon
         },
@@ -52,7 +50,6 @@ pub fn update_tray_icon(hwnd: HWND, enabled: bool) -> windows::core::Result<()> 
     }
     Ok(())
 }
-
 
 // 添加托盘图标
 pub fn add_tray_icon(hwnd: HWND) -> windows::core::Result<()> {
@@ -78,7 +75,7 @@ pub fn add_tray_icon(hwnd: HWND) -> windows::core::Result<()> {
         uFlags: NIF_MESSAGE | NIF_ICON | NIF_TIP,
         hWnd: hwnd,
         uCallbackMessage: constants::NOTIFYICONMESSAGE,
-        hIcon: unsafe { LoadIconW(h_instance, PCWSTR(icon_id as *const u16))? },
+        hIcon: unsafe { LoadIconW(Some(HINSTANCE(h_instance.0)), PCWSTR(icon_id as *const u16))? },
         szTip: [0; 128],
         ..Default::default()
     };

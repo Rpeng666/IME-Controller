@@ -12,7 +12,7 @@ categories = ["accessibility", "os::windows-apis"]
 build = "build.rs"
 
 [dependencies]
-windows = { version = "0.48", features = [
+windows = { version = "0.62.0", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",
     "Win32_Globalization",
@@ -34,3 +34,4 @@ dirs = "6.0.0"
 winreg = "0.55.0"
 open = "5.3.2"
 time = "0.3.43"
+log4rs = "1.4.0"

@@ -1,4 +1,6 @@
 use crate::constants;
+use crate::tray::HINSTANCE;
+use windows::core::Error;
 use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
 use windows::Win32::Graphics::Gdi::{COLOR_WINDOW, HBRUSH};
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -7,7 +9,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{CS_HREDRAW, CS_VREDRAW, WNDCLASSW};
 use windows::{
-    core::*,
+    core::{w, Result, PCWSTR},
     Win32::{Foundation::HWND, System::LibraryLoader::GetModuleHandleW},
 };
 
@@ -22,10 +24,15 @@ pub fn create_window(
         lpfnWndProc: Some(window_proc),
         cbClsExtra: 0,
         cbWndExtra: 0,
-        hInstance: instance,
-        hIcon: unsafe { LoadIconW(instance, PCWSTR(constants::IDI_ICON1 as *const u16))? },
+        hInstance: HINSTANCE(instance.0),
+        hIcon: unsafe {
+            LoadIconW(
+                Some(HINSTANCE(instance.0)),
+                PCWSTR(constants::IDI_ICON1 as *const u16),
+            )?
+        },
         hCursor: unsafe { LoadCursorW(None, IDC_ARROW)? },
-        hbrBackground: HBRUSH(COLOR_WINDOW.0 as isize),
+        hbrBackground: HBRUSH((COLOR_WINDOW.0 + 1) as *mut core::ffi::c_void),
         lpszMenuName: PCWSTR::null(),
         lpszClassName: window_class,
     };
@@ -33,7 +40,10 @@ pub fn create_window(
     unsafe {
         let atom = RegisterClassW(&wc);
         if atom == 0 {
-            return Err(Error::from_win32());
+            return Err(Error::new(
+                windows::core::HRESULT(-1),
+                "无法注册窗口类".to_string(),
+            ));
         }
 
         // 创建一个隐藏的窗口
@@ -48,12 +58,15 @@ pub fn create_window(
             1,
             None,
             None,
-            instance,
+            Some(HINSTANCE(instance.0)),
             None,
-        );
+        )?;
 
-        if hwnd.0 == 0 {
-            Err(Error::from_win32())
+        if hwnd.is_invalid() {
+            Err(Error::new(
+                windows::core::HRESULT(-1),
+                "无法创建窗口".to_string(),
+            ))
         } else {
             Ok(hwnd)
         }

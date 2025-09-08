@@ -1,28 +1,49 @@
-use log::{Level, LevelFilter};
-use simplelog::*;
-use std::fs::File;
+use log::LevelFilter;
+use log4rs;
 
 pub fn init_logger() -> Result<(), Box<dyn std::error::Error>> {
-    // 创建日志文件
-    let log_file = File::create("app.log")?;
+    // 创建 log4rs 配置
+    let config = log4rs::config::Config::builder()
+        .appender(
+            log4rs::config::Appender::builder()
+                .build(
+                    "file",
+                    Box::new(
+                        log4rs::append::rolling_file::RollingFileAppender::builder()
+                            .build("app.log", 
+                                Box::new(
+                                    log4rs::append::rolling_file::policy::compound::CompoundPolicy::new(
+                                        Box::new(log4rs::append::rolling_file::policy::compound::trigger::size::SizeTrigger::new(2 * 1024 * 1024)), // 2MB
+                                        Box::new(log4rs::append::rolling_file::policy::compound::roll::fixed_window::FixedWindowRoller::builder().build("app.{}.log", 3)?)
+                                    )
+                                )
+                            )?
+                    )
+                )
+        )
+        .appender(
+            log4rs::config::Appender::builder()
+                .build(
+                    "console",
+                    Box::new(log4rs::append::console::ConsoleAppender::builder().build())
+                )
+        )
+        .logger(
+            log4rs::config::Logger::builder()
+                .appender("file")
+                .appender("console")
+                .additive(false)
+                .build("app", LevelFilter::Info)
+        )
+        .build(
+            log4rs::config::Root::builder()
+                .appender("file")
+                .appender("console")
+                .build(LevelFilter::Info)
+        )?;
 
-    // 初始化日志系统，同时写文件和控制台
-    CombinedLogger::init(vec![
-        // 写入文件
-        WriteLogger::new(
-            LevelFilter::Info, // 文件日志 Info 级别及以上
-            ConfigBuilder::new().build(),
-            log_file,
-        ),
-        // 输出到控制台
-        TermLogger::new(
-            LevelFilter::Info, // 控制台日志 Info 级别及以上
-            ConfigBuilder::new().build(),
-            TerminalMode::Mixed, // Mixed 模式：Info 打印到 stdout，Warn/Error 打印到 stderr
-            ColorChoice::Auto,   // 自动使用颜色
-        ),
-    ])?;
+    log4rs::init_config(config)?;
 
-    log::info!("日志系统已初始化，日志级别: {:?}", Level::Info);
+    log::info!("日志系统已初始化，使用自动轮转");
     Ok(())
 }

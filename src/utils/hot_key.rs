@@ -3,7 +3,7 @@ use crate::constants;
 use crate::utils::parse_hotkey::parse_hotkey;
 use log::{error, info};
 use std::time::Duration;
-use windows::Win32::Foundation::{BOOL, HWND, GetLastError};
+use windows::Win32::Foundation::{GetLastError, HWND};
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 
 // 注册所有热键，失败时重试
@@ -69,7 +69,7 @@ fn register_all_hotkeys_with_retry(hwnd: HWND, max_retries: i32) {
 // 注册和注销热键
 fn register_hotkey(hwnd: HWND, id: i32, modifiers: u32, key: u32) -> bool {
     unsafe {
-        if RegisterHotKey(hwnd, id, HOT_KEY_MODIFIERS(modifiers), key).as_bool() {
+        if RegisterHotKey(Some(hwnd), id, HOT_KEY_MODIFIERS(modifiers), key).is_ok() {
             true
         } else {
             let err_code = GetLastError().0;
@@ -86,7 +86,7 @@ fn register_hotkey(hwnd: HWND, id: i32, modifiers: u32, key: u32) -> bool {
 
 // 注销热键
 fn unregister_hotkey(hwnd: HWND, id: i32) -> bool {
-    unsafe { UnregisterHotKey(hwnd, id).as_bool() }
+    unsafe { UnregisterHotKey(Some(hwnd), id).is_ok() }
 }
 
 // 注销所有热键

@@ -37,7 +37,7 @@ fn set_window_hook() -> Option<HWINEVENTHOOK> {
             WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS, // 钩子标志
         );
 
-        if hook.0 == 0 {
+        if hook.is_invalid() {
             // 如果返回句柄为 0，说明设置失败
             None
         } else {
@@ -50,7 +50,7 @@ fn set_window_hook() -> Option<HWINEVENTHOOK> {
 fn create_message_loop() {
     unsafe {
         let mut message = MSG::default();
-        while GetMessageW(&mut message, HWND(0), 0, 0).as_bool() {
+        while GetMessageW(&mut message, None, 0, 0).as_bool() {
             TranslateMessage(&message);
             DispatchMessageW(&message);
         }
@@ -101,7 +101,7 @@ fn main() -> windows::core::Result<()> {
 
     // 清理定时器和钩子
     unsafe {
-        KillTimer(hwnd, constants::TIMER_ID_IME_CHECK);
+        KillTimer(Some(hwnd), constants::TIMER_ID_IME_CHECK);
     }
 
     unsafe {
